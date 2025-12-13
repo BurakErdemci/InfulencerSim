@@ -6,6 +6,8 @@ using DG.Tweening;
 
 public class MainController : MonoBehaviour
 {
+    public static MainController Instance;
+
     [Header("--- YÖNETİCİLER ---")]
     [SerializeField] private StreamUIManager streamUIManager; 
     [SerializeField] private DialogueManager dialogueManager;         
@@ -14,21 +16,31 @@ public class MainController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
     [SerializeField] private Button startStreamButton;         
     
+    [Header("--- YAYIN EKRANI UI ---")]
+    [SerializeField] private TextMeshProUGUI liveViewerText; 
+
     [Header("--- SONUÇ PANELI ---")]
     [SerializeField] private GameObject resultPanel;           
-    [SerializeField] private TextMeshProUGUI resultGainText;   
+    [SerializeField] private TextMeshProUGUI resultGainText;     
+    [SerializeField] private TextMeshProUGUI resultSanityText;   
     [SerializeField] private Button continueButton;            
 
-    [Header("--- AYARLAR ---")]
-    public float streamDuration = 5.0f; 
+    [Header("--- MINIGAME AYARLARI ---")]
+    // Çift değişkeni sildim, sadece bunları kullanacağız:
+    [SerializeField] private MinigameManager minigameScript; 
+    [SerializeField] private GameObject minigameObject;      
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
 
     void Start()
     {
-        // 1. UI Güncelle
         UpdateMainUI();
         if(resultPanel != null) resultPanel.SetActive(false);
         
-        // 2. Butonları Bağla
         if (startStreamButton != null)
         {
             startStreamButton.onClick.RemoveAllListeners();
@@ -40,80 +52,112 @@ public class MainController : MonoBehaviour
             continueButton.onClick.RemoveAllListeners();
             continueButton.onClick.AddListener(EndStreamSession);
         }
-        
-        // Oyun başlar başlamaz (otomatik) konuşma başlat
+
         StartCoroutine(AutoSpeakAtStart());
     }
 
-    // Oyun açıldıktan 1 saniye sonra karakter konuşur
     IEnumerator AutoSpeakAtStart()
     {
-        yield return new WaitForSeconds(1.0f); // Sahne yüklensin diye azıcık bekle
-        if(dialogueManager != null) 
-        {
-            dialogueManager.SpeakInRoom(); 
-        }
+        yield return new WaitForSeconds(1.0f);
+        if(dialogueManager != null) dialogueManager.SpeakInRoom(); 
     }
-    
+
     public void StartFullStreamSession()
     {
         startStreamButton.interactable = false;
         StartCoroutine(IntroSequence());
     }
-
+    
     IEnumerator IntroSequence()
     {
-        // 1. Eğer baloncuk hala açıksa kapat (Temizlik)
+        // 1. Balon varsa kapat
         if(dialogueManager != null) dialogueManager.HideBubbleImmediately();
+        
+        // 2. Canlı sayısını ayarla
+        CalculateLiveViewers();
 
-        // 2. Yayına Geçiş Yap
+        // 3. Sahne Geçişi (Oda -> Yayın)
         if(streamUIManager != null) streamUIManager.GoLive();
         
-        // 3. Geçiş Animasyonu Bekle
         yield return new WaitForSeconds(0.5f); 
 
-        // 4. Yayın ekranında "Selam" desin
+        // 4. Karakter "Selam" desin
         if(dialogueManager != null) dialogueManager.SpeakInChat();
 
-        // 5. Süre başlasın
-        StartCoroutine(StreamDurationRoutine());
+        // 5. MINIGAME HAZIRLIĞI
+        if(minigameObject != null) 
+        {
+            minigameObject.SetActive(true); // Paneli aç
+            
+            // Minigame'i "Butonu Göster" moduna getir
+            if(minigameScript != null) minigameScript.SetupMinigame();
+        }
+        
+        // NOT: Artık süre sayacı yok. Minigame bitince bizi çağıracak.
     }
 
-    IEnumerator StreamDurationRoutine()
+    // --- BU FONKSİYONU MINIGAME BİTİNCE ÇAĞIRACAK ---
+    public void CompleteStreamSession(int score)
     {
-        yield return new WaitForSeconds(streamDuration);
+        // 1. Minigame'i gizle
+        if(minigameObject != null) minigameObject.SetActive(false);
 
-        int gainedFollowers = Random.Range(100, 500);
+        // 2. İstatistikleri işle (Skor = Takipçi, -10 Akıl)
         float moralityLoss = 10f; 
-        GameManager.Instance.UpdateStats(gainedFollowers, moralityLoss);
+        GameManager.Instance.UpdateStats(score, moralityLoss);
 
-        OpenResultPanel(gainedFollowers);
+        // 3. Sonuç Panelini Aç
+        if(liveViewerText != null) liveViewerText.transform.DOKill(); 
+        OpenResultPanel(score, moralityLoss);
     }
 
-    void OpenResultPanel(int gain)
+    void OpenResultPanel(int gain, float sanityLoss)
     {
         if(resultPanel != null)
         {
             resultPanel.SetActive(true);
             resultPanel.transform.localScale = Vector3.zero;
             resultPanel.transform.DOScale(Vector3.one, 0.5f).SetEase(Ease.OutBack);
+            
             if(resultGainText != null) resultGainText.text = "+" + gain.ToString() + " Takipçi";
+            if(resultSanityText != null) resultSanityText.text = "-" + sanityLoss.ToString() + " Akıl";
         }
     }
 
+    // --- DEVAM ET BUTONUNA BASINCA ÇALIŞIR ---
     public void EndStreamSession()
     {
+        // DÜZELTME: Buradan Minigame'i tekrar bitirmeye çalışma (Döngüye girer).
+        // Sadece paneli kapat ve odaya dön.
+        
+        if(minigameObject != null) minigameObject.SetActive(false); // Garanti olsun diye gizle
+
         if(resultPanel != null) resultPanel.SetActive(false);
         if(streamUIManager != null) streamUIManager.EndStream();
         
         UpdateMainUI();
         startStreamButton.interactable = true;
-        
     }
 
     void UpdateMainUI()
     {
         if (mainFollowerText != null)
             mainFollowerText.text = "Takipçi: " + GameManager.Instance.followers.ToString();
+    }
+
+    void CalculateLiveViewers()
+    {
+        if(liveViewerText != null)
+        {
+            long totalFollowers = GameManager.Instance.followers;
+            long liveCount = totalFollowers / 4;
+            if (liveCount < 10) liveCount = 10; 
+
+            liveViewerText.text = "🔴 " + liveCount.ToString();
+            
+            liveViewerText.transform.DOKill();
+            liveViewerText.transform.localScale = Vector3.one;
+            liveViewerText.transform.DOScale(1.1f, 0.5f).SetLoops(-1, LoopType.Yoyo);
+        }
     }
 }
