@@ -11,6 +11,7 @@ public class MainController : MonoBehaviour
     [Header("--- YÖNETİCİLER ---")]
     [SerializeField] private StreamUIManager streamUIManager; 
     [SerializeField] private DialogueManager dialogueManager;         
+    [SerializeField] private TrendHuntManager trendHuntManager; // [NEW]
 
     [Header("--- ANA EKRAN UI ---")]
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
@@ -24,7 +25,7 @@ public class MainController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI resultGainText;     
     [SerializeField] private TextMeshProUGUI resultSanityText;   
     [SerializeField] private Button continueButton;            
-
+    
     [Header("--- MINIGAME AYARLARI ---")]
     // Çift değişkeni sildim, sadece bunları kullanacağız:
     [SerializeField] private MinigameManager minigameScript; 
@@ -44,7 +45,7 @@ public class MainController : MonoBehaviour
         if (startStreamButton != null)
         {
             startStreamButton.onClick.RemoveAllListeners();
-            startStreamButton.onClick.AddListener(StartFullStreamSession);
+            startStreamButton.onClick.AddListener(StartButtonLogic);
         }
 
         if(continueButton != null) 
@@ -62,12 +63,32 @@ public class MainController : MonoBehaviour
         if(dialogueManager != null) dialogueManager.SpeakInRoom(); 
     }
 
-    public void StartFullStreamSession()
+    // [MODIFIED] Button now triggers Trend Hunt first
+    public void StartButtonLogic()
     {
         startStreamButton.interactable = false;
-        StartCoroutine(IntroSequence());
+        
+        // Eğer TrendManager bağlıysa önce onu çalıştır
+        if (trendHuntManager != null)
+        {
+            trendHuntManager.StartTrendHunt();
+        }
+        else
+        {
+            // Bağlı değilse direkt eski akış
+            OnTrendHuntFinished();
+        }
     }
     
+    // [NEW] Trend Hunt bitince burası çağrılır
+    public void OnTrendHuntFinished()
+    {
+        // Update UI in case we gained followers from trends
+        UpdateMainUI(); 
+        StartCoroutine(IntroSequence());
+    }
+
+    // Eski StartFullStreamSession -> IntroSequence olarak devam ediyor
     IEnumerator IntroSequence()
     {
         // 1. Balon varsa kapat
