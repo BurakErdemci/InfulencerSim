@@ -12,6 +12,7 @@ public class MainController : MonoBehaviour
     [SerializeField] private StreamUIManager streamUIManager; 
     [SerializeField] private DialogueManager dialogueManager;         
     [SerializeField] private TrendHuntManager trendHuntManager;
+    [SerializeField] private ChatModGameManager chatModManager; // Restored
 
     [Header("--- ANA EKRAN UI ---")]
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
@@ -148,6 +149,24 @@ public class MainController : MonoBehaviour
     public void OnTrendHuntFinished()
     {
         UpdateMainUI(); 
+        
+        // Chain: TrendHunt -> ChatMod -> IntroSequence
+        if(chatModManager != null)
+        {
+            chatModManager.StartModGame();
+        }
+        else
+        {
+            StartCoroutine(IntroSequence());
+        }
+    }
+
+    public void OnChatModFinished(int score)
+    {
+        // Add score from ChatMod to stats
+        float moralityEffect = (score > 500) ? 5f : -5f; // Example logic
+        GameManager.Instance.UpdateStats(score, moralityEffect);
+        
         StartCoroutine(IntroSequence());
     }
 

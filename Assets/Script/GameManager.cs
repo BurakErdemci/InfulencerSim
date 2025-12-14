@@ -34,6 +34,12 @@ public class GameManager : MonoBehaviour
         morality = Mathf.Clamp(morality, 0f, 100f);
     }
 
+    // Restore UpdateStats for backward compatibility
+    public void UpdateStats(int followerGain, float sanityChange)
+    {
+        UpdateGeneralStats(followerGain, sanityChange);
+    }
+
     public void ProcessMinigameEnd(int rawScore)
     {
         // 1. Çarpan Hesabı
