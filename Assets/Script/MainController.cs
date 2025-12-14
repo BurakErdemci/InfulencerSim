@@ -31,6 +31,10 @@ public class MainController : MonoBehaviour
     [SerializeField] private MinigameManager minigameScript; 
     [SerializeField] private GameObject minigameObject;      
 
+    [Header("--- ROOM UI (CANLI VERİ) ---")]
+    [SerializeField] private TextMeshProUGUI roomFollowerText; // Hiyerarşideki "takipciSayar"
+    [SerializeField] private TextMeshProUGUI roomSanityText;   // Hiyerarşideki "Akilsagligi" içindeki text
+
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -55,6 +59,19 @@ public class MainController : MonoBehaviour
         }
 
         StartCoroutine(AutoSpeakAtStart());
+    }
+    void Update()
+    {
+        // Her karede veriyi güncelle (En kolayı bu)
+        if (GameManager.Instance != null)
+        {
+            if (roomFollowerText != null) 
+                roomFollowerText.text = GameManager.Instance.followers.ToString();
+
+            if (roomSanityText != null) 
+                roomSanityText.text = "%" + Mathf.RoundToInt(GameManager.Instance.morality).ToString(); 
+            // Not: Eğer "Sanity" diye ayrı değişkenin varsa onu yaz: GameManager.Instance.sanity
+        }
     }
 
     IEnumerator AutoSpeakAtStart()
@@ -174,7 +191,7 @@ public class MainController : MonoBehaviour
             long liveCount = totalFollowers / 4;
             if (liveCount < 10) liveCount = 10; 
 
-            liveViewerText.text = "🔴 " + liveCount.ToString();
+            liveViewerText.text =  liveCount.ToString();
             
             liveViewerText.transform.DOKill();
             liveViewerText.transform.localScale = Vector3.one;

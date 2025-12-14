@@ -66,7 +66,7 @@ public class ChatManager : MonoBehaviour
         if (morality < 30 && (message.Contains("SATILMIŞ") || message.Contains("Dislike")))
             textComp.color = Color.red;
         else
-            textComp.color = Color.black;
+            textComp.color = Color.whiteSmoke;
         
         Canvas.ForceUpdateCanvases();
         scrollRect.DOVerticalNormalizedPos(0f, 0.3f);
