@@ -20,7 +20,8 @@ public class MinigameManager : MonoBehaviour
 
     [Header("Spawn Hızı")]
     public float normalSpawnInterval = 0.45f;   
-    public float corruptSpawnInterval = 0.15f;  
+    public float corruptSpawnInterval = 0.6f; // Yozlaşınca oyun kolaylaşsın (daha yavaş spawn)
+    public float godModeSpawnInterval = 0.1f; // God mode kaosu
 
     [Header("UI Elementleri")]
     public Button startGameButton;
@@ -38,7 +39,7 @@ public class MinigameManager : MonoBehaviour
     [SerializeField] private float startSpeedMult = 2.2f;
     [SerializeField] private float endSpeedMult = 6.0f;
     [SerializeField] private AnimationCurve speedCurve = AnimationCurve.Linear(0,0,1,1);
-    [SerializeField] private float corruptSpeedMult = 0.45f;
+    [SerializeField] private float corruptSpeedMult = 0.5f; // Yozlaşınca düşüş hızı yarıya insin
 
     [Header("Ses")]
     public AudioSource sfxSource;
@@ -47,10 +48,11 @@ public class MinigameManager : MonoBehaviour
     public AudioClip vacuumLoopClip;
     private float lastSoundTime;
 
+    // FallingObject'in eriştiği hız çarpanı
     public float CurrentSpeedMultiplier { get; private set; } = 1f;
     
     // FallingObject'in erişmesi gereken değişkenler:
-    public bool IsVacuumActive => GameManager.Instance.isGodMode;
+    public bool IsVacuumActive => GameManager.Instance != null && GameManager.Instance.isGodMode;
     public float vacuumFallMult = 0.05f;    
     public float vacuumPullSpeed = 2800f;   
     public float vacuumCatchDistance = 55f; 
@@ -64,29 +66,31 @@ public class MinigameManager : MonoBehaviour
 
     void Update()
     {
-        if (!isPlaying) return;
+        if (!isPlaying || GameManager.Instance == null) return;
 
-        // ---- HIZ KONTROLÜ ----
-        if (GameManager.Instance.isCorrupt)
+        // ---- HIZ KONTROLÜ (FAZLARA GÖRE) ----
+        
+        // DURUM 1: GOD MODE (Vakum açık, hız önemsiz ama akış hızlı olsun)
+        if (GameManager.Instance.isGodMode)
         {
+            // God Mode'da düşüş hızı normalin biraz üstü kalsın, vakum çekecek zaten
+            CurrentSpeedMultiplier = startSpeedMult; 
+        }
+        // DURUM 2: CORRUPT (Kolaylaştırılmış Mod - Para Çantaları)
+        else if (GameManager.Instance.isCorrupt)
+        {
+            // Hız sabit ve yavaş (Oyuncu rahatça toplasın)
             CurrentSpeedMultiplier = startSpeedMult * corruptSpeedMult;
         }
+        // DURUM 3: NORMAL (Zorlanan Oyuncu)
         else
         {
+            // Zamanla hızlanan (Ramp) zorluk eğrisi
             float t = (Time.time - gameStartTime) / Mathf.Max(0.01f, rampDuration);
             t = Mathf.Clamp01(t);
             float eased = speedCurve.Evaluate(t);
             
-            // DÜZELTME 1: offerMade -> offerPresented
-            float difficultyOffset = GameManager.Instance.offerPresented ? 0.5f : 0f;
-            
-            // DÜZELTME 2: godModeOfferMade -> godModeOfferPresented
-            if (GameManager.Instance.godModeOfferPresented && !GameManager.Instance.isGodMode)
-            {
-                difficultyOffset += 1.5f; 
-            }
-            
-            CurrentSpeedMultiplier = Mathf.Lerp(startSpeedMult, endSpeedMult, eased) + difficultyOffset;
+            CurrentSpeedMultiplier = Mathf.Lerp(startSpeedMult, endSpeedMult, eased);
         }
     }
 
@@ -114,6 +118,14 @@ public class MinigameManager : MonoBehaviour
         isPlaying = true;
         gameStartTime = Time.time;
 
+        // God Mode ise Vakum sesi çal
+        if (IsVacuumActive && sfxSource && vacuumLoopClip)
+        {
+            sfxSource.clip = vacuumLoopClip;
+            sfxSource.loop = true;
+            sfxSource.Play();
+        }
+
         SpawnPlayer();
         StartCoroutine(SpawnRoutine());
         StartCoroutine(GameTimerRoutine());
@@ -138,9 +150,16 @@ public class MinigameManager : MonoBehaviour
     {
         while (isPlaying) {
             SpawnItem();
+            
+            // Spawn hızını faza göre belirle
             float waitTime = normalSpawnInterval;
-            if (GameManager.Instance.isGodMode) waitTime = 0.1f; 
-            else if (GameManager.Instance.isCorrupt) waitTime = corruptSpawnInterval; 
+            
+            if (GameManager.Instance != null)
+            {
+                if (GameManager.Instance.isGodMode) waitTime = godModeSpawnInterval; // Çılgın atış
+                else if (GameManager.Instance.isCorrupt) waitTime = corruptSpawnInterval; // Daha rahat
+            }
+            
             yield return new WaitForSeconds(waitTime);
         }
     }
@@ -149,15 +168,21 @@ public class MinigameManager : MonoBehaviour
     {
         if (gameArea == null) return;
         GameObject prefabToSpawn = null;
-        bool isCorruptOrGod = GameManager.Instance.isCorrupt || GameManager.Instance.isGodMode;
+        
+        bool isCorrupt = GameManager.Instance != null && GameManager.Instance.isCorrupt;
+        bool isGod = GameManager.Instance != null && GameManager.Instance.isGodMode;
 
-        if (isCorruptOrGod && moneyBagPrefab != null) {
+        // Para Çantası Mantığı (Sadece Yozlaşmış veya God Mode ise)
+        if ((isCorrupt || isGod) && moneyBagPrefab != null) {
             if (Random.value <= moneyBagChance) prefabToSpawn = moneyBagPrefab;
         }
 
+        // Eğer para çantası gelmediyse normal/kötü obje seç
         if (prefabToSpawn == null) {
             float goodChance = 0.6f; 
-            if (isCorruptOrGod) goodChance = 0.90f; 
+            if (isCorrupt) goodChance = 0.85f; // Yozlaşınca iyi gelme şansı artsın
+            if (isGod) goodChance = 0.95f;     // God mode neredeyse hep iyi
+            
             GameObject[] pool = (Random.value < goodChance) ? goodItems : badItems;
             if (pool != null && pool.Length > 0) prefabToSpawn = pool[Random.Range(0, pool.Length)];
         }
@@ -165,8 +190,11 @@ public class MinigameManager : MonoBehaviour
         if (prefabToSpawn != null) {
             GameObject obj = Instantiate(prefabToSpawn, gameArea);
             
+            // UI üzerinde render sırası için (Önde görünsün)
             Canvas canvas = obj.GetComponent<Canvas>();
             if(canvas) { canvas.overrideSorting = true; canvas.sortingOrder = 10; }
+            
+            // Eğer SpriteRenderer varsa (UI değilse)
             SpriteRenderer sr = obj.GetComponent<SpriteRenderer>();
             if(sr) sr.sortingOrder = 10;
 
@@ -195,7 +223,9 @@ public class MinigameManager : MonoBehaviour
 
     public void PlayCollectSound(bool isBad)
     {
+        // God mode'da vakum sesi var, pıt pıt sesine gerek yok kafa şişirmesin
         if (IsVacuumActive) return; 
+        
         if (Time.time < lastSoundTime + 0.08f) return;
         if (sfxSource) {
             sfxSource.pitch = Random.Range(0.9f, 1.1f);
@@ -219,6 +249,10 @@ public class MinigameManager : MonoBehaviour
     public void EndMinigame()
     {
         isPlaying = false;
+        
+        // Loop sesi durdur
+        if (sfxSource && sfxSource.loop) sfxSource.Stop();
+
         Cleanup();
         if (MainController.Instance != null) MainController.Instance.CompleteStreamSession(currentScore);
     }
@@ -229,6 +263,19 @@ public class MinigameManager : MonoBehaviour
         if (currentPlayer != null) { Destroy(currentPlayer.gameObject); currentPlayer = null; }
         if (gameArea != null) {
             foreach (var f in gameArea.GetComponentsInChildren<FallingObject>(true)) Destroy(f.gameObject);
+        }
+    }
+
+    // --- MAIN CONTROLLER'IN KULLANDIĞI KİLİT FONKSİYONU ---
+    public void SetStartButtonInteractable(bool state)
+    {
+        if (startGameButton != null)
+        {
+            startGameButton.interactable = state;
+            // Butonun görünürlüğünü de hafif kıs ki kilitli olduğu anlaşılsın
+            CanvasGroup cg = startGameButton.GetComponent<CanvasGroup>();
+            if (cg == null) cg = startGameButton.gameObject.AddComponent<CanvasGroup>();
+            cg.alpha = state ? 1f : 0.5f;
         }
     }
 }

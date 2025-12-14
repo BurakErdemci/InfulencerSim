@@ -15,7 +15,8 @@ public class MainController : MonoBehaviour
 
     [Header("--- ANA EKRAN UI ---")]
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
-    [SerializeField] private Button startStreamButton;         
+    [SerializeField] private Button startStreamButton;
+    [SerializeField] private Image corruptionOverlay;         
     
     [Header("--- YAYIN EKRANI UI ---")]
     [SerializeField] private TextMeshProUGUI liveViewerText; 
@@ -53,6 +54,7 @@ public class MainController : MonoBehaviour
     void Start()
     {
         UpdateMainUI();
+        
         if(resultPanel != null) resultPanel.SetActive(false);
         if(offerPanel != null) offerPanel.SetActive(false);
         if(godModePanel != null) godModePanel.SetActive(false);
@@ -61,6 +63,9 @@ public class MainController : MonoBehaviour
         {
             startStreamButton.onClick.RemoveAllListeners();
             startStreamButton.onClick.AddListener(StartButtonLogic);
+            
+            // YENİ: Başlangıçta butonu kilitle, konuşma bitince açılsın
+            startStreamButton.interactable = false;
         }
 
         if(continueButton != null) 
@@ -69,6 +74,7 @@ public class MainController : MonoBehaviour
             continueButton.onClick.AddListener(OnNextButtonPressed); 
         }
 
+        // Faz 2 Butonları
         if (acceptOfferButton != null)
         {
             acceptOfferButton.onClick.RemoveAllListeners();
@@ -80,6 +86,7 @@ public class MainController : MonoBehaviour
             declineOfferButton.onClick.AddListener(() => OnOfferChoiceMade(false));
         }
         
+        // Faz 3 Butonları
         if (acceptGodModeButton != null)
         {
             acceptGodModeButton.onClick.RemoveAllListeners();
@@ -103,13 +110,32 @@ public class MainController : MonoBehaviour
 
             if (roomSanityText != null) 
                 roomSanityText.text = "%" + Mathf.RoundToInt(GameManager.Instance.morality).ToString(); 
+
+            if (corruptionOverlay != null)
+            {
+                float ratio = 1.0f - (GameManager.Instance.morality / 100f);
+                float maxDarkness = 0.65f; 
+                corruptionOverlay.color = new Color(0, 0, 0, ratio * maxDarkness);
+            }
         }
     }
 
     IEnumerator AutoSpeakAtStart()
     {
         yield return new WaitForSeconds(1.0f);
-        if(dialogueManager != null) dialogueManager.SpeakInRoom(); 
+        
+        if(dialogueManager != null) 
+        {
+            // YENİ: Konuşma bitince Butonu AÇ (Callback)
+            dialogueManager.SpeakInRoom(() => 
+            {
+                if (startStreamButton != null) startStreamButton.interactable = true;
+            }); 
+        }
+        else
+        {
+            if (startStreamButton != null) startStreamButton.interactable = true;
+        }
     }
 
     public void StartButtonLogic()
@@ -132,18 +158,38 @@ public class MainController : MonoBehaviour
         if(streamUIManager != null) streamUIManager.GoLive();
         
         yield return new WaitForSeconds(0.5f); 
-        if(dialogueManager != null) dialogueManager.SpeakInChat();
 
+        // MINIGAME HAZIRLIĞI
         if(minigameObject != null) 
         {
             minigameObject.SetActive(true); 
-            if(minigameScript != null) minigameScript.SetupMinigame();
+            if(minigameScript != null) 
+            {
+                minigameScript.SetupMinigame();
+                // YENİ: Minigame Butonunu KİLİTLE
+                minigameScript.SetStartButtonInteractable(false);
+            }
+        }
+
+        // YENİ: Yayın Konuşması (Callback ile)
+        if(dialogueManager != null) 
+        {
+            // Konuşma bitince Minigame Butonunu AÇ
+            dialogueManager.SpeakInChat(() => 
+            {
+                if(minigameScript != null) minigameScript.SetStartButtonInteractable(true);
+            });
+        }
+        else
+        {
+            if(minigameScript != null) minigameScript.SetStartButtonInteractable(true);
         }
     }
 
     public void CompleteStreamSession(int score)
     {
         if(minigameObject != null) minigameObject.SetActive(false);
+        
         GameManager.Instance.ProcessMinigameEnd(score);
         ShowResults(score); 
     }
@@ -163,9 +209,7 @@ public class MainController : MonoBehaviour
             if(resultSanityText != null) 
             {
                 resultSanityText.text = "Akıl Sağlığı: %" + Mathf.RoundToInt(GameManager.Instance.morality).ToString();
-                
-                if (GameManager.Instance.morality > 50) resultSanityText.color = Color.green;
-                else resultSanityText.color = Color.red;
+                resultSanityText.color = (GameManager.Instance.morality > 50) ? Color.green : Color.red;
             }
         }
     }
@@ -181,7 +225,6 @@ public class MainController : MonoBehaviour
     {
         yield return new WaitForSeconds(1.5f); 
 
-        // Sıradaki hedefi geçtik mi?
         if (GameManager.Instance.followers >= GameManager.Instance.nextEventThreshold)
         {
             if (GameManager.Instance.isCorrupt && !GameManager.Instance.isGodMode)
@@ -194,12 +237,14 @@ public class MainController : MonoBehaviour
             }
             else
             {
-                startStreamButton.interactable = true;
+                // YENİ: Odaya dönünce tekrar konuşma başlasın ve buton kilitlensin
+                StartCoroutine(AutoSpeakAtStart());
             }
         }
         else
         {
-            startStreamButton.interactable = true;
+            // YENİ: Teklif yoksa da konuşma başlasın
+            StartCoroutine(AutoSpeakAtStart());
         }
     }
 
@@ -221,15 +266,15 @@ public class MainController : MonoBehaviour
         if (accepted)
         {
             GameManager.Instance.AcceptOffer(true); 
+            StartGlitchEffect(); 
         }
         else
         {
-            // TRUE gönderiyoruz çünkü bu God Mode teklifi
             GameManager.Instance.PostponeOffer(true); 
         }
 
         UpdateMainUI();
-        startStreamButton.interactable = true;
+        StartCoroutine(AutoSpeakAtStart()); // Seçimden sonra konuşma
     }
 
     void OpenOfferPanel()
@@ -253,12 +298,11 @@ public class MainController : MonoBehaviour
         }
         else
         {
-            // FALSE gönderiyoruz çünkü bu normal teklif
             GameManager.Instance.PostponeOffer(false); 
         }
 
         UpdateMainUI();
-        startStreamButton.interactable = true;
+        StartCoroutine(AutoSpeakAtStart()); // Seçimden sonra konuşma
     }
 
     void ReturnToRoom()
@@ -288,5 +332,17 @@ public class MainController : MonoBehaviour
             liveViewerText.transform.localScale = Vector3.one;
             liveViewerText.transform.DOScale(1.1f, 0.5f).SetLoops(-1, LoopType.Yoyo);
         }
+    }
+
+    void StartGlitchEffect()
+    {
+        if(mainFollowerText != null)
+            mainFollowerText.transform.DOShakePosition(1f, 3f, 10, 90, false, true).SetLoops(-1);
+        
+        if(roomSanityText != null)
+            roomSanityText.transform.DOShakePosition(0.5f, 5f, 20, 90, false, true).SetLoops(-1);
+
+        if(startStreamButton != null)
+            startStreamButton.transform.DOShakeScale(2f, 0.05f, 5, 90).SetLoops(-1);
     }
 }
