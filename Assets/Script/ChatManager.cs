@@ -14,9 +14,9 @@ public class ChatManager : MonoBehaviour
     [Header("Ayarlar")]
     public float messageSpeed = 2f;   
 
-    private string[] goodMessages = { "Harikasın!", "Kraliçe <3", "Çok tatlısın", "Selamlar!", "Oha yeteneğe bak", "Kalp Kalp Kalp" };
-    private string[] badMessages = { "SATILMIŞ!", "Paragöz", "Bunu yapma", "Unfollow", "Dislike", "Eski halin iyiydi", "BOŞ YAPMA" };
-    private string[] botMessages = { "FREE CRYPTO CLICK HERE", "WIN IPHONE 15", "$$$ Money $$$", "Hot Singles Area" };
+    public static string[] goodMessages = { "Harikasın!", "Kraliçe <3", "Çok tatlısın", "Selamlar!", "Oha yeteneğe bak", "Kalp Kalp Kalp" };
+    public static string[] badMessages = { "SATILMIŞ!", "Paragöz", "Bunu yapma", "Unfollow", "Dislike", "Eski halin iyiydi", "BOŞ YAPMA" };
+    public static string[] botMessages = { "FREE CRYPTO CLICK HERE", "WIN IPHONE 15", "$$$ Money $$$", "Hot Singles Area" };
 
     private bool isStreaming = false;
     private float timer;

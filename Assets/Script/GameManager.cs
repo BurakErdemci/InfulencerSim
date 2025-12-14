@@ -53,6 +53,11 @@ public class GameManager : MonoBehaviour
         CheckGameOver();
     }
 
+    public void UpdateStats(int gain, float sanity)
+    {
+        UpdateGeneralStats(gain, sanity);
+    }
+
     public void ProcessMinigameEnd(int rawScore)
     {
         // 1. Çarpan Hesabı
