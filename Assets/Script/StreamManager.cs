@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Video; // Video için gerekli kütüphane
+using UnityEngine.Video; 
 using DG.Tweening;
 
 public class StreamUIManager : MonoBehaviour
@@ -9,14 +9,14 @@ public class StreamUIManager : MonoBehaviour
     public RectTransform roomPanel;  
     public RectTransform streamPanel; 
     
-    [Header("Resim Bazlı Facecam (Eski Sistem)")]
+    [Header("Resim Bazlı Facecam (Yedek)")]
     public Image faceCamImage;
     public Sprite[] faceStates; 
 
-    [Header("Video Bazlı Facecam (YENİ)")]
-    public RawImage faceCamRawImage; // Videonun göründüğü obje
-    public VideoPlayer faceCamPlayer; // Videoyu oynatan bileşen
-    public VideoClip[] videoStates; // 0: İyi, 1: Orta, 2: Kötü (Video halleri)
+    [Header("Video Bazlı Facecam")]
+    public RawImage faceCamRawImage; 
+    public VideoPlayer faceCamPlayer; 
+    public VideoClip[] videoStates; // 0: İyi, 1: Orta, 2: Kötü
 
     [Header("Diğer")]
     public ChatManager chatManager;
@@ -25,8 +25,16 @@ public class StreamUIManager : MonoBehaviour
 
     void Start()
     {
+        // Başlangıçta paneli ve facecam'i hazırla
         streamPanel.gameObject.SetActive(false); 
         streamPanel.anchoredPosition = new Vector2(0, -screenHeight);
+        
+        // Video player'ı hazırla ama oynatma
+        if(faceCamPlayer != null) 
+        {
+            faceCamPlayer.playOnAwake = false;
+            faceCamPlayer.Stop();
+        }
     }
 
     public void GoLive()
@@ -38,21 +46,13 @@ public class StreamUIManager : MonoBehaviour
 
         streamPanel.DOAnchorPosY(0, 0.8f).SetEase(Ease.OutBack).OnComplete(() => {
              chatManager.StartChat();
-             // Video oynatmaya başla
-             if(faceCamPlayer != null && faceCamPlayer.clip != null)
-             {
-                 faceCamPlayer.Play();
-             }
+             UpdateFacecam(); // Facecam'i animasyon bitince başlatmak daha güvenli
         });
-
-        UpdateFacecam();
     }
 
     public void EndStream()
     {
         chatManager.StopChat();
-
-        // Videoyu durdur
         if(faceCamPlayer != null) faceCamPlayer.Stop();
 
         streamPanel.DOAnchorPosY(-screenHeight, 0.6f).SetEase(Ease.InBack).OnComplete(() => {
@@ -62,37 +62,60 @@ public class StreamUIManager : MonoBehaviour
         roomPanel.DOAnchorPosY(0, 0.8f).SetEase(Ease.OutBack);
     }
 
-    void UpdateFacecam()
+   void UpdateFacecam()
     {
         float m = GameManager.Instance.morality;
         int stateIndex = 0;
 
-        if (m > 70) stateIndex = 0;
-        else if (m > 30) stateIndex = 1;
-        else stateIndex = 2;
+        // Duruma göre hangi videonun oynayacağını seç
+        if (m > 70) stateIndex = 0;      
+        else if (m > 30) stateIndex = 1; 
+        else stateIndex = 2;             
 
-        // --- VİDEO KONTROLÜ ---
-        // Eğer VideoPlayer atanmışsa ve ilgili state için bir video varsa VİDEO oynat
+        bool videoSuccess = false;
+
         if (faceCamPlayer != null && faceCamRawImage != null && 
             videoStates.Length > stateIndex && videoStates[stateIndex] != null)
         {
-            // 1. Resmi Gizle
-            if(faceCamImage != null) faceCamImage.gameObject.SetActive(false);
-            
-            // 2. Videoyu Göster ve Ayarla
-            faceCamRawImage.gameObject.SetActive(true);
-            faceCamPlayer.clip = videoStates[stateIndex];
-            faceCamPlayer.Play();
+            try
+            {
+                // Hedef video klibi
+                VideoClip targetClip = videoStates[stateIndex];
+
+                
+                if (faceCamPlayer.clip == targetClip && faceCamPlayer.isPlaying)
+                {
+                    // Video zaten doğru ve akıyor, elleme.
+                    videoSuccess = true;
+                }
+                else
+                {
+                    // Video farklıysa veya durmuşsa değiştir
+                    if(faceCamImage != null) faceCamImage.gameObject.SetActive(false);
+                    
+                    faceCamRawImage.gameObject.SetActive(true);
+                    faceCamPlayer.gameObject.SetActive(true);
+
+                    faceCamPlayer.isLooping = true; // Döngüde olduğundan emin ol
+                    faceCamPlayer.clip = targetClip;
+                    faceCamPlayer.Play();
+                }
+                
+                videoSuccess = true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("Video hatası: " + e.Message);
+                videoSuccess = false;
+            }
         }
-        else
+
+        // --- FALLBACK (Video başarısızsa resme dön) ---
+        if (!videoSuccess)
         {
-            // --- RESİM KONTROLÜ (Fallback) ---
-            // Video yoksa eski sistem çalışsın
-            
-            // 1. Videoyu Gizle
             if(faceCamRawImage != null) faceCamRawImage.gameObject.SetActive(false);
+            if(faceCamPlayer != null) faceCamPlayer.Stop();
             
-            // 2. Resmi Göster
             if(faceCamImage != null)
             {
                 faceCamImage.gameObject.SetActive(true);

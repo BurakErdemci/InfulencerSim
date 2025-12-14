@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections;
 using TMPro;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class MinigameManager : MonoBehaviour
 {
@@ -12,71 +13,48 @@ public class MinigameManager : MonoBehaviour
     public GameObject playerPrefab;
     public GameObject[] goodItems;
     public GameObject[] badItems;
+    
+    [Header("--- SPECIAL ITEMS ---")]
+    public GameObject moneyBagPrefab; 
+    [Range(0f, 1f)] public float moneyBagChance = 0.25f; 
+
+    [Header("Spawn Hızı")]
+    public float normalSpawnInterval = 0.45f;   
+    public float corruptSpawnInterval = 0.15f;  
 
     [Header("UI Elementleri")]
     public Button startGameButton;
     public TextMeshProUGUI scoreText;
     public TextMeshProUGUI timerText;
-
-    [Header("Görsellik")]
     public GameObject gameBackground;
-
-    [Header("UI Minigame Alanı")]
     public RectTransform gameArea;
 
     [Header("Oyun Ayarları")]
     public float gameDuration = 20f;
-    public float spawnInterval = 0.45f;
-
-    [Header("Spawn / Boyut")]
     public float objectScale = 1f;
 
-    // ===================== LEVEL / PHASE =====================
-    public enum DifficultyLevel { Level1, Level2, Level3 }
-
-    [Header("Level Sistemi")]
-    public DifficultyLevel currentLevel = DifficultyLevel.Level1;
-
-    [Tooltip("Followers'a göre level otomatik seçilsin mi?")]
-    public bool autoLevelByFollowers = true;
-
-    [Tooltip("10k gibi değerler")]
-    public long level2Followers = 10000;
-
-    [Tooltip("1m gibi değerler")]
-    public long level3Followers = 1000000;
-
-    // ===================== SPEED RAMP (KAZIK) =====================
-    [Header("KAZIK Speed Ramp")]
+    [Header("Zorluk Ayarları")]
     [SerializeField] private float rampDuration = 30f;
-
-    // Level1 başlangıç zaten hızlı
     [SerializeField] private float startSpeedMult = 2.2f;
     [SerializeField] private float endSpeedMult = 6.0f;
+    [SerializeField] private AnimationCurve speedCurve = AnimationCurve.Linear(0,0,1,1);
+    [SerializeField] private float corruptSpeedMult = 0.45f;
 
-    [SerializeField] private AnimationCurve speedCurve =
-        new AnimationCurve(
-            new Keyframe(0f, 0f),
-            new Keyframe(0.25f, 0.65f),
-            new Keyframe(1f, 1f)
-        );
-
-    // Level2 = "kolay faz" (yavaşlat)
-    [Header("Level2 Easy (Slow Motion)")]
-    [SerializeField] private float level2SlowMult = 0.45f;
+    [Header("Ses")]
+    public AudioSource sfxSource;
+    public AudioClip collectClip;
+    public AudioClip badClip;
+    public AudioClip vacuumLoopClip;
+    private float lastSoundTime;
 
     public float CurrentSpeedMultiplier { get; private set; } = 1f;
+    
+    // FallingObject'in erişmesi gereken değişkenler:
+    public bool IsVacuumActive => GameManager.Instance.isGodMode;
+    public float vacuumFallMult = 0.05f;    
+    public float vacuumPullSpeed = 2800f;   
+    public float vacuumCatchDistance = 55f; 
 
-    // ===================== VACUUM (LEVEL3) =====================
-    [Header("Level3 Auto Vacuum (NO INPUT)")]
-    public float vacuumPullSpeed = 2800f;   // UI px/s, yüksek normal
-    public float vacuumFallMult = 0.05f;    // vakumda düşüş neredeyse dursun
-    public float vacuumCatchDistance = 55f; // collider'a bile gerek kalmadan topla
-
-    private float vacuumEndTime = -1f; // Level3'te "sonsuz" yapacağız
-    public bool IsVacuumActive => Time.time < vacuumEndTime;
-
-    // ===================== INTERNAL =====================
     private bool isPlaying = false;
     private RectTransform currentPlayer;
     private int currentScore = 0;
@@ -88,24 +66,33 @@ public class MinigameManager : MonoBehaviour
     {
         if (!isPlaying) return;
 
-        // ---- SPEED RAMP ----
-        float t = (Time.time - gameStartTime) / Mathf.Max(0.01f, rampDuration);
-        t = Mathf.Clamp01(t);
-
-        float eased = speedCurve.Evaluate(t);
-        float baseMult = Mathf.Lerp(startSpeedMult, endSpeedMult, eased);
-
-        float levelMult = 1f;
-        if (currentLevel == DifficultyLevel.Level2) levelMult = level2SlowMult;
-
-        CurrentSpeedMultiplier = baseMult * levelMult;
+        // ---- HIZ KONTROLÜ ----
+        if (GameManager.Instance.isCorrupt)
+        {
+            CurrentSpeedMultiplier = startSpeedMult * corruptSpeedMult;
+        }
+        else
+        {
+            float t = (Time.time - gameStartTime) / Mathf.Max(0.01f, rampDuration);
+            t = Mathf.Clamp01(t);
+            float eased = speedCurve.Evaluate(t);
+            
+            // DÜZELTME 1: offerMade -> offerPresented
+            float difficultyOffset = GameManager.Instance.offerPresented ? 0.5f : 0f;
+            
+            // DÜZELTME 2: godModeOfferMade -> godModeOfferPresented
+            if (GameManager.Instance.godModeOfferPresented && !GameManager.Instance.isGodMode)
+            {
+                difficultyOffset += 1.5f; 
+            }
+            
+            CurrentSpeedMultiplier = Mathf.Lerp(startSpeedMult, endSpeedMult, eased) + difficultyOffset;
+        }
     }
 
-    // ===================== PUBLIC API =====================
     public void SetupMinigame()
     {
         Cleanup();
-
         currentScore = 0;
         if (scoreText) scoreText.text = "Skor: 0";
         if (timerText) timerText.text = Mathf.CeilToInt(gameDuration).ToString();
@@ -113,14 +100,12 @@ public class MinigameManager : MonoBehaviour
         if (startGameButton) startGameButton.gameObject.SetActive(true);
         if (gameBackground) gameBackground.SetActive(false);
 
-        if (startGameButton)
-        {
+        if (startGameButton) {
             startGameButton.onClick.RemoveAllListeners();
             startGameButton.onClick.AddListener(StartMinigameLogic);
         }
     }
 
-    // ===================== START =====================
     void StartMinigameLogic()
     {
         if (startGameButton) startGameButton.gameObject.SetActive(false);
@@ -129,43 +114,19 @@ public class MinigameManager : MonoBehaviour
         isPlaying = true;
         gameStartTime = Time.time;
 
-        // ---- AUTO LEVEL ----
-        if (autoLevelByFollowers && GameManager.Instance != null)
-        {
-            long f = GameManager.Instance.followers;
-
-            if (f >= level3Followers) currentLevel = DifficultyLevel.Level3;
-            else if (f >= level2Followers) currentLevel = DifficultyLevel.Level2;
-            else currentLevel = DifficultyLevel.Level1;
-        }
-
-        // ---- LEVEL3: AUTO VACUUM (NO INPUT) ----
-        if (currentLevel == DifficultyLevel.Level3)
-            vacuumEndTime = Time.time + 999999f; // pratikte sonsuz
-        else
-            vacuumEndTime = -1f;
-
         SpawnPlayer();
-
         StartCoroutine(SpawnRoutine());
         StartCoroutine(GameTimerRoutine());
-
-        Debug.Log($"[LEVEL] followers={(GameManager.Instance != null ? GameManager.Instance.followers : -1)} level={currentLevel} vacuum={IsVacuumActive}");
     }
 
     void SpawnPlayer()
     {
         if (currentPlayer != null) Destroy(currentPlayer.gameObject);
-
         Transform parent = (gameArea != null) ? gameArea : transform;
-
         GameObject p = Instantiate(playerPrefab, parent);
         p.tag = "Player";
-
         currentPlayer = p.GetComponent<RectTransform>();
-
-        if (currentPlayer != null && gameArea != null)
-        {
+        if (currentPlayer != null && gameArea != null) {
             float y = -(gameArea.rect.height * 0.5f) + 60f;
             currentPlayer.anchoredPosition = new Vector2(0, y);
             currentPlayer.localScale = Vector3.one;
@@ -175,57 +136,83 @@ public class MinigameManager : MonoBehaviour
 
     IEnumerator SpawnRoutine()
     {
-        while (isPlaying)
-        {
+        while (isPlaying) {
             SpawnItem();
-            yield return new WaitForSeconds(spawnInterval);
+            float waitTime = normalSpawnInterval;
+            if (GameManager.Instance.isGodMode) waitTime = 0.1f; 
+            else if (GameManager.Instance.isCorrupt) waitTime = corruptSpawnInterval; 
+            yield return new WaitForSeconds(waitTime);
         }
     }
 
     void SpawnItem()
     {
         if (gameArea == null) return;
+        GameObject prefabToSpawn = null;
+        bool isCorruptOrGod = GameManager.Instance.isCorrupt || GameManager.Instance.isGodMode;
 
-        // Level3 power fantasy: çoğu good
-        float goodChance = 0.6f;
-        if (currentLevel == DifficultyLevel.Level2) goodChance = 0.8f;
-        if (currentLevel == DifficultyLevel.Level3) goodChance = 0.9f;
+        if (isCorruptOrGod && moneyBagPrefab != null) {
+            if (Random.value <= moneyBagChance) prefabToSpawn = moneyBagPrefab;
+        }
 
-        GameObject[] pool = (Random.value < goodChance) ? goodItems : badItems;
-        if (pool == null || pool.Length == 0) return;
+        if (prefabToSpawn == null) {
+            float goodChance = 0.6f; 
+            if (isCorruptOrGod) goodChance = 0.90f; 
+            GameObject[] pool = (Random.value < goodChance) ? goodItems : badItems;
+            if (pool != null && pool.Length > 0) prefabToSpawn = pool[Random.Range(0, pool.Length)];
+        }
 
-        GameObject prefab = pool[Random.Range(0, pool.Length)];
-        GameObject obj = Instantiate(prefab, gameArea);
+        if (prefabToSpawn != null) {
+            GameObject obj = Instantiate(prefabToSpawn, gameArea);
+            
+            Canvas canvas = obj.GetComponent<Canvas>();
+            if(canvas) { canvas.overrideSorting = true; canvas.sortingOrder = 10; }
+            SpriteRenderer sr = obj.GetComponent<SpriteRenderer>();
+            if(sr) sr.sortingOrder = 10;
 
-        RectTransform rt = obj.GetComponent<RectTransform>();
-        if (rt != null)
-        {
-            float xRange = (gameArea.rect.width * 0.5f) - 60f;
-            float y = (gameArea.rect.height * 0.5f) + 40f;
-
-            rt.anchoredPosition3D = new Vector3(Random.Range(-xRange, xRange), y, 0f);
-            rt.localScale = prefab.transform.localScale * objectScale;
-            rt.localRotation = Quaternion.identity;
+            RectTransform rt = obj.GetComponent<RectTransform>();
+            if (rt != null) {
+                float xRange = (gameArea.rect.width * 0.5f) - 60f;
+                float y = (gameArea.rect.height * 0.5f) + 40f;
+                rt.anchoredPosition3D = new Vector3(Random.Range(-xRange, xRange), y, 0f);
+                rt.localScale = prefabToSpawn.transform.localScale * objectScale;
+                rt.localRotation = Quaternion.identity;
+            }
         }
     }
 
     public void AddScore(int val)
     {
         currentScore += val;
-        if (scoreText) scoreText.text = "Skor: " + currentScore;
+        if (scoreText) {
+            scoreText.text = "Skor: " + currentScore;
+            scoreText.transform.DOKill(); 
+            scoreText.transform.localScale = Vector3.one; 
+            scoreText.transform.DOPunchScale(Vector3.one * 0.3f, 0.2f, 1, 0.5f);
+        }
+        PlayCollectSound(val < 0);
+    }
+
+    public void PlayCollectSound(bool isBad)
+    {
+        if (IsVacuumActive) return; 
+        if (Time.time < lastSoundTime + 0.08f) return;
+        if (sfxSource) {
+            sfxSource.pitch = Random.Range(0.9f, 1.1f);
+            if (isBad && badClip) sfxSource.PlayOneShot(badClip);
+            else if (collectClip) sfxSource.PlayOneShot(collectClip);
+        }
+        lastSoundTime = Time.time;
     }
 
     IEnumerator GameTimerRoutine()
     {
         float time = gameDuration;
-
-        while (time > 0 && isPlaying)
-        {
+        while (time > 0 && isPlaying) {
             if (timerText) timerText.text = Mathf.CeilToInt(time).ToString();
             yield return new WaitForSeconds(1f);
             time--;
         }
-
         EndMinigame();
     }
 
@@ -233,25 +220,15 @@ public class MinigameManager : MonoBehaviour
     {
         isPlaying = false;
         Cleanup();
-
-        if (MainController.Instance != null)
-            MainController.Instance.CompleteStreamSession(currentScore);
+        if (MainController.Instance != null) MainController.Instance.CompleteStreamSession(currentScore);
     }
 
     void Cleanup()
     {
         StopAllCoroutines();
-
-        if (currentPlayer != null)
-        {
-            Destroy(currentPlayer.gameObject);
-            currentPlayer = null;
-        }
-
-        if (gameArea != null)
-        {
-            foreach (var f in gameArea.GetComponentsInChildren<FallingObject>(true))
-                Destroy(f.gameObject);
+        if (currentPlayer != null) { Destroy(currentPlayer.gameObject); currentPlayer = null; }
+        if (gameArea != null) {
+            foreach (var f in gameArea.GetComponentsInChildren<FallingObject>(true)) Destroy(f.gameObject);
         }
     }
 }

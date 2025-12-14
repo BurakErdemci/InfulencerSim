@@ -22,7 +22,7 @@ public class TrendHuntManager : MonoBehaviour
     private float timer;
     private bool isActive = false;
 
-    // Sample Data
+    // --- BAŞLIKLAR ---
     private string[] safeTopics = { 
         "ASMR Slicing", "Setup Tour", "Get Ready With Me", "Unboxing Ps5", "Tech Review", 
         "Speedrun Any%", "Cooking Fails", "Reacting to TikToks", "Honest Q&A", "Storytime", 
@@ -58,7 +58,6 @@ public class TrendHuntManager : MonoBehaviour
         if (container == null) return;
         foreach (Transform child in container) Destroy(child.gameObject);
 
-        // Mix and Spawn
         int riskyCount = Random.Range(2, 4);
         for (int i = 0; i < riskyCount; i++) SpawnItem(GetRandomTopic(riskyTopics), true);
 
@@ -78,10 +77,36 @@ public class TrendHuntManager : MonoBehaviour
         GameObject go = Instantiate(trendItemPrefab, container);
         TrendItem item = go.GetComponent<TrendItem>();
         
-        int gain = isRisky ? Random.Range(500, 1000) : Random.Range(50, 200);
-        float moralityLoss = isRisky ? Random.Range(10, 20) : -2f;
+        int gain = 0;
+        float moralityChange = 0; // Değişken adını düzelttim: moralityChange
 
-        item.Setup(topic, gain, moralityLoss, isRisky, this);
+        if (isRisky)
+        {
+            gain = Random.Range(500, 1000);
+            
+            
+            // Riskli ise NEGATİF değer veriyoruz ki düşsün.
+            
+            if (GameManager.Instance.streamCount == 0)
+            {
+                // İlk yayın için hafif ceza (-5)
+                moralityChange = -5f; 
+            }
+            else
+            {
+                // Sonraki yayınlar için ağır ceza (-15 ile -25 arası)
+                moralityChange = Random.Range(-25f, -15f); 
+            }
+        }
+        else
+        {
+            gain = Random.Range(50, 200);
+            // Güvenli içerik akıl sağlığını biraz iyileştirir (+2)
+            moralityChange = 2f; 
+        }
+
+        // moralityChange değerini item'a gönderiyoruz
+        item.Setup(topic, gain, moralityChange, isRisky, this);
     }
 
     public bool TrySelectTrend(TrendItem item)
@@ -119,16 +144,17 @@ public class TrendHuntManager : MonoBehaviour
         StopAllCoroutines();
 
         int totalGain = 0;
-        float totalMorality = 0;
+        float totalMoralityChange = 0;
 
         foreach (var t in selectedTrends)
         {
             totalGain += t.followerGain;
-            totalMorality += t.moralityLoss;
+            totalMoralityChange += t.moralityLoss; // TrendItem scriptinde bu değişkenin adı moralityLoss ise dokunma, değeri negatif zaten
         }
 
+        // GameManager'a gönder (Negatif olduğu için düşürecek)
         if(GameManager.Instance != null)
-            GameManager.Instance.UpdateStats(totalGain, totalMorality);
+            GameManager.Instance.UpdateGeneralStats(totalGain, totalMoralityChange);
 
         if(trendHuntPanel != null) trendHuntPanel.SetActive(false);
         if(MainController.Instance != null) MainController.Instance.OnTrendHuntFinished();

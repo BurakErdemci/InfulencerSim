@@ -14,7 +14,6 @@ public class ChatManager : MonoBehaviour
     [Header("Ayarlar")]
     public float messageSpeed = 2f;   
 
-   
     private string[] goodMessages = { "Harikasın!", "Kraliçe <3", "Çok tatlısın", "Selamlar!", "Oha yeteneğe bak", "Kalp Kalp Kalp" };
     private string[] badMessages = { "SATILMIŞ!", "Paragöz", "Bunu yapma", "Unfollow", "Dislike", "Eski halin iyiydi", "BOŞ YAPMA" };
     private string[] botMessages = { "FREE CRYPTO CLICK HERE", "WIN IPHONE 15", "$$$ Money $$$", "Hot Singles Area" };
@@ -24,7 +23,6 @@ public class ChatManager : MonoBehaviour
 
     public void StartChat()
     {
-   
         foreach (Transform child in chatContent) Destroy(child.gameObject);
         isStreaming = true;
     }
@@ -48,10 +46,10 @@ public class ChatManager : MonoBehaviour
 
     void SpawnMessage()
     {
-    
         string message = "";
         float morality = GameManager.Instance.morality;
         
+        // Akıl sağlığına göre mesaj havuzu seç
         if (morality > 70) 
             message = goodMessages[Random.Range(0, goodMessages.Length)];
         else if (morality > 30) 
@@ -69,31 +67,25 @@ public class ChatManager : MonoBehaviour
             textComp.color = Color.whiteSmoke;
         
         Canvas.ForceUpdateCanvases();
-        scrollRect.DOVerticalNormalizedPos(0f, 0.3f);
+        if(scrollRect != null) scrollRect.DOVerticalNormalizedPos(0f, 0.3f);
     }
+
+   
     public void SendStreamerMessage(string message)
     {
-        // 1. Obje Yaratılıyor
+        // 1. Obje Yarat
         GameObject newText = Instantiate(textPrefab, chatContent);
         
-        newText.transform.localScale = Vector3.one; 
-        Vector3 pos = newText.transform.localPosition;
-        newText.transform.localPosition = new Vector3(pos.x, pos.y, 0);
-    
-
+        // 2. Text Ayarla (Yayıncı olduğu belli olsun diye Sarı renk)
         TextMeshProUGUI textComp = newText.GetComponent<TextMeshProUGUI>();
-
-      
         textComp.text = "<b><color=yellow>STREAMER:</color></b> " + message; 
         textComp.color = Color.yellow; 
         
-        
+        // 3. Scroll Aşağı İndir
         Canvas.ForceUpdateCanvases();
         if(scrollRect != null) 
         {
             scrollRect.DOVerticalNormalizedPos(0f, 0.3f);
         }
     }
-
-
 }

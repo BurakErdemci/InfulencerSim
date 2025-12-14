@@ -11,7 +11,7 @@ public class MainController : MonoBehaviour
     [Header("--- YÖNETİCİLER ---")]
     [SerializeField] private StreamUIManager streamUIManager; 
     [SerializeField] private DialogueManager dialogueManager;         
-    [SerializeField] private TrendHuntManager trendHuntManager; // [NEW]
+    [SerializeField] private TrendHuntManager trendHuntManager;
 
     [Header("--- ANA EKRAN UI ---")]
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
@@ -24,16 +24,25 @@ public class MainController : MonoBehaviour
     [SerializeField] private GameObject resultPanel;           
     [SerializeField] private TextMeshProUGUI resultGainText;     
     [SerializeField] private TextMeshProUGUI resultSanityText;   
-    [SerializeField] private Button continueButton;            
-    
+    [SerializeField] private Button continueButton;          
+
+    [Header("--- THE OFFER (TEKLİF) PANELI ---")]
+    [SerializeField] private GameObject offerPanel;        
+    [SerializeField] private Button acceptOfferButton;     
+    [SerializeField] private Button declineOfferButton;    
+
     [Header("--- MINIGAME AYARLARI ---")]
-    // Çift değişkeni sildim, sadece bunları kullanacağız:
     [SerializeField] private MinigameManager minigameScript; 
     [SerializeField] private GameObject minigameObject;      
 
     [Header("--- ROOM UI (CANLI VERİ) ---")]
-    [SerializeField] private TextMeshProUGUI roomFollowerText; // Hiyerarşideki "takipciSayar"
-    [SerializeField] private TextMeshProUGUI roomSanityText;   // Hiyerarşideki "Akilsagligi" içindeki text
+    [SerializeField] private TextMeshProUGUI roomFollowerText; 
+    [SerializeField] private TextMeshProUGUI roomSanityText;   
+
+    [Header("--- GOD MODE PANELİ ---")]
+    [SerializeField] private GameObject godModePanel;
+    [SerializeField] private Button acceptGodModeButton;
+    [SerializeField] private Button declineGodModeButton;
 
     void Awake()
     {
@@ -45,6 +54,8 @@ public class MainController : MonoBehaviour
     {
         UpdateMainUI();
         if(resultPanel != null) resultPanel.SetActive(false);
+        if(offerPanel != null) offerPanel.SetActive(false);
+        if(godModePanel != null) godModePanel.SetActive(false);
         
         if (startStreamButton != null)
         {
@@ -55,14 +66,36 @@ public class MainController : MonoBehaviour
         if(continueButton != null) 
         {
             continueButton.onClick.RemoveAllListeners();
-            continueButton.onClick.AddListener(EndStreamSession);
+            continueButton.onClick.AddListener(OnNextButtonPressed); 
+        }
+
+        if (acceptOfferButton != null)
+        {
+            acceptOfferButton.onClick.RemoveAllListeners();
+            acceptOfferButton.onClick.AddListener(() => OnOfferChoiceMade(true));
+        }
+        if (declineOfferButton != null)
+        {
+            declineOfferButton.onClick.RemoveAllListeners();
+            declineOfferButton.onClick.AddListener(() => OnOfferChoiceMade(false));
+        }
+        
+        if (acceptGodModeButton != null)
+        {
+            acceptGodModeButton.onClick.RemoveAllListeners();
+            acceptGodModeButton.onClick.AddListener(() => OnGodModeChoice(true));
+        }
+        if (declineGodModeButton != null)
+        {
+            declineGodModeButton.onClick.RemoveAllListeners();
+            declineGodModeButton.onClick.AddListener(() => OnGodModeChoice(false));
         }
 
         StartCoroutine(AutoSpeakAtStart());
     }
+
     void Update()
     {
-        // Her karede veriyi güncelle (En kolayı bu)
         if (GameManager.Instance != null)
         {
             if (roomFollowerText != null) 
@@ -70,7 +103,6 @@ public class MainController : MonoBehaviour
 
             if (roomSanityText != null) 
                 roomSanityText.text = "%" + Mathf.RoundToInt(GameManager.Instance.morality).ToString(); 
-            // Not: Eğer "Sanity" diye ayrı değişkenin varsa onu yaz: GameManager.Instance.sanity
         }
     }
 
@@ -80,101 +112,161 @@ public class MainController : MonoBehaviour
         if(dialogueManager != null) dialogueManager.SpeakInRoom(); 
     }
 
-    // [MODIFIED] Button now triggers Trend Hunt first
     public void StartButtonLogic()
     {
         startStreamButton.interactable = false;
-        
-        // Eğer TrendManager bağlıysa önce onu çalıştır
-        if (trendHuntManager != null)
-        {
-            trendHuntManager.StartTrendHunt();
-        }
-        else
-        {
-            // Bağlı değilse direkt eski akış
-            OnTrendHuntFinished();
-        }
+        if (trendHuntManager != null) trendHuntManager.StartTrendHunt();
+        else OnTrendHuntFinished();
     }
     
-    // [NEW] Trend Hunt bitince burası çağrılır
     public void OnTrendHuntFinished()
     {
-        // Update UI in case we gained followers from trends
         UpdateMainUI(); 
         StartCoroutine(IntroSequence());
     }
 
-    // Eski StartFullStreamSession -> IntroSequence olarak devam ediyor
     IEnumerator IntroSequence()
     {
-        // 1. Balon varsa kapat
         if(dialogueManager != null) dialogueManager.HideBubbleImmediately();
-        
-        // 2. Canlı sayısını ayarla
         CalculateLiveViewers();
-
-        // 3. Sahne Geçişi (Oda -> Yayın)
         if(streamUIManager != null) streamUIManager.GoLive();
         
         yield return new WaitForSeconds(0.5f); 
-
-        // 4. Karakter "Selam" desin
         if(dialogueManager != null) dialogueManager.SpeakInChat();
 
-        // 5. MINIGAME HAZIRLIĞI
         if(minigameObject != null) 
         {
-            minigameObject.SetActive(true); // Paneli aç
-            
-            // Minigame'i "Butonu Göster" moduna getir
+            minigameObject.SetActive(true); 
             if(minigameScript != null) minigameScript.SetupMinigame();
         }
-        
-        // NOT: Artık süre sayacı yok. Minigame bitince bizi çağıracak.
     }
 
-    // --- BU FONKSİYONU MINIGAME BİTİNCE ÇAĞIRACAK ---
     public void CompleteStreamSession(int score)
     {
-        // 1. Minigame'i gizle
         if(minigameObject != null) minigameObject.SetActive(false);
-
-        // 2. İstatistikleri işle (Skor = Takipçi, -10 Akıl)
-        float moralityLoss = 10f; 
-        GameManager.Instance.UpdateStats(score, moralityLoss);
-
-        // 3. Sonuç Panelini Aç
-        if(liveViewerText != null) liveViewerText.transform.DOKill(); 
-        OpenResultPanel(score, moralityLoss);
+        GameManager.Instance.ProcessMinigameEnd(score);
+        ShowResults(score); 
     }
 
-    void OpenResultPanel(int gain, float sanityLoss)
+    void ShowResults(int rawScore)
     {
+        if(liveViewerText != null) liveViewerText.transform.DOKill(); 
+        
         if(resultPanel != null)
         {
             resultPanel.SetActive(true);
             resultPanel.transform.localScale = Vector3.zero;
             resultPanel.transform.DOScale(Vector3.one, 0.5f).SetEase(Ease.OutBack);
             
-            if(resultGainText != null) resultGainText.text = "+" + gain.ToString() + " Takipçi";
-            if(resultSanityText != null) resultSanityText.text = "-" + sanityLoss.ToString() + " Akıl";
+            if(resultGainText != null) resultGainText.text = "Toplam Takipçi:\n" + GameManager.Instance.followers.ToString();
+            
+            if(resultSanityText != null) 
+            {
+                resultSanityText.text = "Akıl Sağlığı: %" + Mathf.RoundToInt(GameManager.Instance.morality).ToString();
+                
+                if (GameManager.Instance.morality > 50) resultSanityText.color = Color.green;
+                else resultSanityText.color = Color.red;
+            }
         }
     }
 
-    // --- DEVAM ET BUTONUNA BASINCA ÇALIŞIR ---
-    public void EndStreamSession()
+    public void OnNextButtonPressed()
     {
-        // DÜZELTME: Buradan Minigame'i tekrar bitirmeye çalışma (Döngüye girer).
-        // Sadece paneli kapat ve odaya dön.
-        
-        if(minigameObject != null) minigameObject.SetActive(false); // Garanti olsun diye gizle
-
         if(resultPanel != null) resultPanel.SetActive(false);
-        if(streamUIManager != null) streamUIManager.EndStream();
-        
+        ReturnToRoom();
+        StartCoroutine(CheckOfferAfterRoomTransition());
+    }
+
+    IEnumerator CheckOfferAfterRoomTransition()
+    {
+        yield return new WaitForSeconds(1.5f); 
+
+        // Sıradaki hedefi geçtik mi?
+        if (GameManager.Instance.followers >= GameManager.Instance.nextEventThreshold)
+        {
+            if (GameManager.Instance.isCorrupt && !GameManager.Instance.isGodMode)
+            {
+                OpenGodModePanel();
+            }
+            else if (!GameManager.Instance.isCorrupt)
+            {
+                OpenOfferPanel();
+            }
+            else
+            {
+                startStreamButton.interactable = true;
+            }
+        }
+        else
+        {
+            startStreamButton.interactable = true;
+        }
+    }
+
+    void OpenGodModePanel()
+    {
+        if(godModePanel != null)
+        {
+            godModePanel.SetActive(true);
+            godModePanel.transform.localScale = Vector3.zero;
+            godModePanel.transform.DOScale(Vector3.one, 0.5f).SetEase(Ease.OutBack);
+            startStreamButton.interactable = false;
+        }
+    }
+
+    void OnGodModeChoice(bool accepted)
+    {
+        if(godModePanel != null) godModePanel.SetActive(false);
+
+        if (accepted)
+        {
+            GameManager.Instance.AcceptOffer(true); 
+        }
+        else
+        {
+            // TRUE gönderiyoruz çünkü bu God Mode teklifi
+            GameManager.Instance.PostponeOffer(true); 
+        }
+
         UpdateMainUI();
         startStreamButton.interactable = true;
+    }
+
+    void OpenOfferPanel()
+    {
+        if(offerPanel != null)
+        {
+            offerPanel.SetActive(true);
+            offerPanel.transform.localScale = Vector3.zero;
+            offerPanel.transform.DOScale(Vector3.one, 0.5f).SetEase(Ease.OutBack);
+            startStreamButton.interactable = false; 
+        }
+    }
+
+    void OnOfferChoiceMade(bool accepted)
+    {
+        if(offerPanel != null) offerPanel.SetActive(false);
+
+        if (accepted)
+        {
+            GameManager.Instance.AcceptOffer(false); 
+        }
+        else
+        {
+            // FALSE gönderiyoruz çünkü bu normal teklif
+            GameManager.Instance.PostponeOffer(false); 
+        }
+
+        UpdateMainUI();
+        startStreamButton.interactable = true;
+    }
+
+    void ReturnToRoom()
+    {
+        if(minigameObject != null) minigameObject.SetActive(false); 
+        if(resultPanel != null) resultPanel.SetActive(false);
+        if(streamUIManager != null) streamUIManager.EndStream();
+        UpdateMainUI();
     }
 
     void UpdateMainUI()
@@ -190,8 +282,7 @@ public class MainController : MonoBehaviour
             long totalFollowers = GameManager.Instance.followers;
             long liveCount = totalFollowers / 4;
             if (liveCount < 10) liveCount = 10; 
-
-            liveViewerText.text =  liveCount.ToString();
+            liveViewerText.text = liveCount.ToString();
             
             liveViewerText.transform.DOKill();
             liveViewerText.transform.localScale = Vector3.one;

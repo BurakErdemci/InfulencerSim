@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class FallingObject : MonoBehaviour
 {
-    [Header("Base (Level1'i kazık yapan) hız")]
+    [Header("Base hız")]
     public float baseFallSpeed = 600f;
 
     [Header("Puanlar")]
@@ -22,23 +22,24 @@ public class FallingObject : MonoBehaviour
 
         var mg = MinigameManager.Instance;
 
+        // Vakum ve Hız değerlerini MinigameManager'dan al
         float mult = mg.CurrentSpeedMultiplier;
-        bool vacuum = mg.IsVacuumActive;
+        bool vacuum = mg.IsVacuumActive; // Phase 3 ise true döner
 
         // ---- FALL ----
         float fallMult = vacuum ? mg.vacuumFallMult : 1f;
         rt.anchoredPosition += Vector2.down * (baseFallSpeed * mult * fallMult) * Time.deltaTime;
 
-        // ---- VACUUM PULL ----
+        // ---- VACUUM PULL (GOD MODE) ----
         if (vacuum && mg.PlayerRT != null)
         {
             Vector2 playerPos = mg.PlayerRT.anchoredPosition;
             Vector2 dir = playerPos - rt.anchoredPosition;
 
-            // Çek
+            // Çekim
             rt.anchoredPosition += dir.normalized * mg.vacuumPullSpeed * Time.deltaTime;
 
-            // Collider'a ihtiyaç kalmadan yakala (god mode hissi)
+            // Yakalama (Distance Check)
             if (dir.sqrMagnitude <= mg.vacuumCatchDistance * mg.vacuumCatchDistance)
             {
                 if (CompareTag("Good")) mg.AddScore(goodPoints);
@@ -49,7 +50,7 @@ public class FallingObject : MonoBehaviour
             }
         }
 
-        // ---- DESTROY OUTSIDE ----
+        // ---- EKRAN DIŞINA ÇIKMA ----
         RectTransform parent = rt.parent as RectTransform;
         if (parent != null)
         {
@@ -61,8 +62,6 @@ public class FallingObject : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
-        // Vakum açıkken zaten distance ile topluyoruz.
-        // Normal modda çarpışma ile puan.
         if (!other.CompareTag("Player")) return;
 
         if (MinigameManager.Instance != null)
