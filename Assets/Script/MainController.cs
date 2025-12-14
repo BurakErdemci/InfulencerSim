@@ -12,6 +12,7 @@ public class MainController : MonoBehaviour
     [SerializeField] private StreamUIManager streamUIManager; 
     [SerializeField] private DialogueManager dialogueManager;         
     [SerializeField] private TrendHuntManager trendHuntManager; // [NEW]
+    [SerializeField] private ChatModGameManager chatModManager; // [NEW_GAME]
 
     [Header("--- ANA EKRAN UI ---")]
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
@@ -85,6 +86,27 @@ public class MainController : MonoBehaviour
     {
         // Update UI in case we gained followers from trends
         UpdateMainUI(); 
+        
+        if (chatModManager != null)
+        {
+            chatModManager.StartModGame();
+        }
+        else
+        {
+            StartCoroutine(IntroSequence());
+        }
+    }
+
+    public void OnChatModFinished(int score)
+    {
+        // Score effects? Maybe add to main followers?
+        // Let's add score * 0.5 as followers, or just pure followers
+        if(GameManager.Instance != null && score > 0)
+        {
+            GameManager.Instance.UpdateStats(score, 0); // Bonus score
+        }
+
+        UpdateMainUI();
         StartCoroutine(IntroSequence());
     }
 
