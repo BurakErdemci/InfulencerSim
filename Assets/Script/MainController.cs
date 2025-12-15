@@ -219,7 +219,7 @@ public class MainController : MonoBehaviour
             
             if(resultSanityText != null) 
             {
-                resultSanityText.text = "Akıl Sağlığı: %" + Mathf.RoundToInt(GameManager.Instance.morality).ToString();
+                resultSanityText.text = "Akıl Sağlığ    ı: %" + Mathf.RoundToInt(GameManager.Instance.morality).ToString();
                 
                 if (GameManager.Instance.morality > 50) resultSanityText.color = Color.green;
                 else resultSanityText.color = Color.red;
