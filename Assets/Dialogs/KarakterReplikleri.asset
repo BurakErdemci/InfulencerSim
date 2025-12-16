@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0124cf40f23e17b41909d3bf0b7d1b1c, type: 3}
+  m_Name: KarakterReplikleri
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueData
+  bubbleDuration: 4
+  roomQuotes:
+  - "(G\xF6zalt\u0131 torbalar\u0131m belli oluyor mu? \xD6nemli de\u011Fil. D\xFCn
+    geceki yay\u0131n rekor k\u0131rd\u0131, bu f\u0131rsat\u0131 ka\xE7\u0131ramam.
+    Uyumak l\xFCks art\u0131k. Bir yay\u0131n daha a\xE7mal\u0131y\u0131m, elli bin
+    takip\xE7iye \xE7ok az kald\u0131.)\""
+  - "\u0130nsanlarla etkile\u015Fim kurmay\u0131 ve oyun oynamay\u0131 seviyorum.
+    B\xFCy\xFCk hayallerim var ama en \xF6nemlisi e\u011Flenmek ve samimi bir topluluk
+    kurmak.\""
+  - "\"Bu, bu ben de\u011Filim. Ama o beni seviyorlar. O yeni beni... Ama bu ac\u0131
+    \xE7ekiyor. Nefret ediyorum... Hay\u0131r! Hay\u0131r, seviyorum!"
+  chatQuotes:
+  - "Herkese merhaba! Ben nadia. Yeni bir yay\u0131nc\u0131y\u0131m ve bu an\u0131
+    sizinle payla\u015Fmak harika. Umar\u0131m e\u011Fleniriz! Bug\xFCn biraz takip\xE7i
+    ya\u011Fmuru oynayaca\u011F\u0131z. Deste\u011Finiz benim i\xE7in \xE7ok k\u0131ymetli.
+    Sohbet edelim!"
+  - "\"D\xFCn geceki rekoru g\xF6rd\xFCn\xFCz m\xFC? Harikayd\u0131k. Ama bu sadece
+    ba\u015Flang\u0131\xE7. Daha fazlas\u0131n\u0131 istiyorum... ve alaca\u011F\u0131m.
+    Bu gece, trend av\u0131 oynarken elli bin takip\xE7iye ula\u015Faca\u011F\u0131z"
+  - "\"NE?! Takip etmeyen o 50.000 ki\u015Fi ne yap\u0131yor? Sadece izliyor musunuz?
+    Bu yay\u0131nlar\u0131 kimin i\xE7in yap\u0131yorum san\u0131yorsunuz?! \u015Eaka
+    \u015Faka"
