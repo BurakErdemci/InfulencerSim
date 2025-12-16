@@ -23,6 +23,24 @@ public class MainMenuManager : MonoBehaviour
         // Oyun açıldığında ses ayarını kontrol et (Varsayılan: Açık)
         UpdateSoundIcon();
     }
+    void Update()
+    {
+        // ESC tuşuna basılınca ne olsun?
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (optionsPanel.activeSelf)
+            {
+                // Eğer panel açıksa kapat
+                CloseOptions(); 
+            }
+            else
+            {
+                // Eğer panel kapalıysa aç (İstersen bunu sil, ESC genelde sadece kapatır)
+                OpenOptions();
+            }
+        }
+    }
+    
 
     public void PlayGame()
     {

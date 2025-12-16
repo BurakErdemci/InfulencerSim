@@ -215,11 +215,11 @@ public class MainController : MonoBehaviour
             resultPanel.transform.localScale = Vector3.zero;
             resultPanel.transform.DOScale(Vector3.one, 0.5f).SetEase(Ease.OutBack);
             
-            if(resultGainText != null) resultGainText.text = "Toplam Takipçi:\n" + GameManager.Instance.followers.ToString();
+            if(resultGainText != null) resultGainText.text =GameManager.Instance.followers.ToString();
             
             if(resultSanityText != null) 
             {
-                resultSanityText.text = "Akıl Sağlığ    ı: %" + Mathf.RoundToInt(GameManager.Instance.morality).ToString();
+                resultSanityText.text ="%"+ Mathf.RoundToInt(GameManager.Instance.morality).ToString();
                 
                 if (GameManager.Instance.morality > 50) resultSanityText.color = Color.green;
                 else resultSanityText.color = Color.red;
@@ -336,7 +336,7 @@ public class MainController : MonoBehaviour
     void UpdateMainUI()
     {
         if (mainFollowerText != null)
-            mainFollowerText.text = "Takipçi: " + GameManager.Instance.followers.ToString();
+            mainFollowerText.text =GameManager.Instance.followers.ToString();
     }
 
     void CalculateLiveViewers()
